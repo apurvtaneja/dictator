@@ -3,8 +3,8 @@
 Press a hotkey anywhere, speak, and the transcription lands in whatever field has
 focus. Transcription reuses your logged-in **chatgpt.com** web session — no API key.
 Runs on stock **Python + PySide6** (Qt 6, includes QtWebEngine) — no `pip install`,
-nothing for a network-level TLS proxy to block, since the network call
-goes out through the embedded browser's own trusted stack.
+nothing for a network-level TLS proxy to block, since the network call goes out
+through the embedded browser's own trusted stack.
 
 Default hotkey **Option+D** (Alt+D on Windows), mode **toggle** (tap to start, tap to
 stop), with **silence auto-stop** so a single press is usually enough.
@@ -204,9 +204,9 @@ QTWEBENGINE_REMOTE_DEBUGGING=9223 /usr/bin/python3 -m chatgpt_dictate
 ## Proxy / MITM notes
 
 Nothing to configure. QtWebEngine's Chromium and `curl` both use the macOS system
-trust store, which already contains any network-proxy (TLS inspection) root CA — verified present in the
-System keychain. The reverse-engineered call goes out *through* the embedded
-browser, so it inherits that trust automatically.
+trust store, which already contains any network-proxy (TLS inspection) root CA. The
+reverse-engineered call goes out *through* the embedded browser, so it inherits that
+trust automatically.
 
 Only relevant if you later add a direct-Python HTTPS backend (e.g. an OpenAI
 API-key fallback): build a CA bundle and point Python at it —
@@ -237,12 +237,11 @@ export SSL_CERT_FILE=~/.config/chatgpt-dictate/corp-ca.pem
 ## Legal / ToS
 
 `/backend-api/transcribe` is an **undocumented** endpoint. Automating it with your
-session cookie is arguably against OpenAI's Terms of Service and can break without
-notice. This is a personal-use interoperability tool; you're responsible for
-how you use it. The backend is isolated
-(`webengine_backend.py` + the three signals it emits) so an official
-`POST /v1/audio/transcriptions` API-key implementation can replace it without
-touching the hotkey or text-insertion code.
+session cookie may not be permitted by OpenAI's Terms of Service and can break
+without notice. This is a personal-use interoperability tool; you're responsible for
+how you use it. The backend is isolated (`webengine_backend.py` + the three signals
+it emits) so an official `POST /v1/audio/transcriptions` API-key implementation can
+replace it without touching the hotkey or text-insertion code.
 
 ## Files
 
