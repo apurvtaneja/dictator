@@ -64,6 +64,12 @@ def run_check() -> int:
     print("  web profile dir  :", config.PROFILE_DIR)
     print("  hotkey           :", cfg["hotkey"])
     print("  mode             :", cfg["mode"])
+    if autostart.supported():
+        recorded = autostart.recorded_command()
+        print("  start at login   :", "enabled" if recorded else "disabled")
+        print("  autostart command:", recorded or autostart.command())
+        if recorded and recorded != autostart.command():
+            print("                     (stale — repaired next time the app starts)")
     print("  transcribe target:", cfg["chatgpt_origin"] + cfg["transcribe_path"],
           f"(field={cfg['audio_field']!r}, response_key={cfg['response_key']!r})")
     return 0
