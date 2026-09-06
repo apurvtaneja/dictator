@@ -9,6 +9,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from ._platform import IS_WIN
+
+# Windows needs an Alt-free default. RegisterHotKey only swallows the *final*
+# key, so with an Alt-based chord the Alt keydown/keyup still reach the
+# foreground app -- which reads a bare Alt tap as "open the menu bar" and takes
+# the caret out of the text field (Chrome jumps to its ⋮ menu). The transcript
+# then has nowhere to land. macOS Option has no such behaviour.
+DEFAULT_HOTKEY = "ctrl+shift+d" if IS_WIN else "option+d"
+
 CONFIG_DIR = Path.home() / ".config" / "chatgpt-dictate"
 CONFIG_PATH = CONFIG_DIR / "config.json"
 PROFILE_DIR = CONFIG_DIR / "webprofile"
@@ -16,7 +25,8 @@ LOG_PATH = CONFIG_DIR / "dictate.log"
 
 DEFAULTS: dict = {
     # --- interaction ---
-    "hotkey": "option+d",          # e.g. "option+d", "cmd+shift+d", "ctrl+option+d"
+    # macOS: "option+d".  Windows: "ctrl+shift+d" -- avoid Alt there, see above.
+    "hotkey": DEFAULT_HOTKEY,
     "mode": "toggle",              # "toggle" (tap on / tap off) or "ptt" (hold)
     "max_seconds": 120,            # hard cap on a single recording
     "trailing_space": True,        # append a space after inserted text

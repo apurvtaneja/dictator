@@ -6,7 +6,7 @@ Runs on stock **Python + PySide6** (Qt 6, includes QtWebEngine) — no `pip inst
 nothing for a network-level TLS proxy to block, since the network call goes out
 through the embedded browser's own trusted stack.
 
-Default hotkey **Option+D** (Alt+D on Windows), mode **toggle** (tap to start, tap to
+Default hotkey **Option+D** on macOS, **Ctrl+Shift+D** on Windows, mode **toggle** (tap to start, tap to
 stop), with **silence auto-stop** so a single press is usually enough.
 
 **macOS** vs **Windows**:
@@ -31,7 +31,7 @@ The floating HUD signals the current state with a small overlay on screen:
 ## How it works
 
 ```
-hotkey (Option+D / Alt+D)     global hotkey via ctypes — Carbon RegisterEventHotKey
+hotkey (Option+D / Ctrl+Shift+D)  global hotkey via ctypes — Carbon RegisterEventHotKey
    │  (platform module)        on macOS, user32 RegisterHotKey on Windows.
    ▼
 app.py  ── state machine ──►  webengine_backend.py
@@ -136,7 +136,11 @@ window; sign in and it closes itself. Diagnostics: `run.bat --check`.
 
 - **Microphone:** Windows prompts once (Settings ▸ Privacy ▸ Microphone — allow desktop apps).
 - **Typing:** works with no permission — the transcript is typed straight in (no paste step).
-- Default hotkey is **Alt+D** (the config's `option` maps to Alt; `cmd` maps to the Win key).
+- Default hotkey is **Ctrl+Shift+D**. In the config, `option` maps to Alt and `cmd` maps
+  to the Win key — but **avoid Alt-based hotkeys on Windows**. `RegisterHotKey` only
+  swallows the final key, so the Alt keydown/keyup still reach the app in front, which
+  treats a bare Alt tap as "open the menu bar" and takes the caret out of your text
+  field. (In Chrome it jumps to the ⋮ menu.) The transcript then has nowhere to land.
 - Push-to-talk isn't supported on Windows (global hotkeys report key-down only); it runs as
   toggle. Silence auto-stop makes single-press dictation seamless.
 
@@ -169,7 +173,7 @@ automatically the next time you start the app by hand.
 
 | Key | Default | Notes |
 |---|---|---|
-| `hotkey` | `"option+d"` | e.g. `"cmd+shift+d"`, `"ctrl+option+d"`, `"f6"` |
+| `hotkey` | `"option+d"` (macOS), `"ctrl+shift+d"` (Windows) | e.g. `"cmd+shift+d"`, `"ctrl+option+d"`, `"f6"`. On Windows, don't use Alt — see *Setup — Windows* |
 | `mode` | `"toggle"` | `"toggle"` or `"ptt"` (hold). Also switchable from the menu. |
 | `max_seconds` | `120` | hard cap per recording |
 | `insert` | `"clipboard"` | `"clipboard"` (copy → you press ⌘V, no permission), `"keystroke"` or `"paste"` (both need Accessibility; auto-fall back to clipboard if not granted) |
@@ -258,6 +262,7 @@ export SSL_CERT_FILE=~/.config/chatgpt-dictate/corp-ca.pem
 |---|---|
 | Menu says "Blocked — needs Accessibility permission" | Add the running app (terminal or *ChatGPT Dictate.app*) under Privacy & Security ▸ Accessibility, toggle it on. |
 | Hotkey does nothing when run from terminal | Some terminals restrict global hotkeys; build and run `ChatGPT Dictate.app`. |
+| **Windows:** nothing is typed, and the app in front jumps to its menu bar (Chrome opens its ⋮ menu) | Your hotkey contains **Alt**. `RegisterHotKey` swallows only the final key, so the bare Alt still reaches that app and it activates the menu, stealing the caret. Use an Alt-free hotkey such as `"ctrl+shift+d"`. |
 | "Signed out" persists after logging in | Menu ▸ *Sign in / re-login…*, complete login; the window auto-closes when `/api/auth/session` returns a token. |
 | `reauth` / `http-403` on every dictation | The endpoint likely now wants an anti-bot token — see *If an anti-bot token is required* above; or your session expired (re-login). |
 | `http-404` / empty transcript | Endpoint path or field name changed — redo the *Reverse-engineering* steps and update `config.json`. |
