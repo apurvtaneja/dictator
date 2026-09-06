@@ -18,6 +18,16 @@ stop), with **silence auto-stop** so a single press is usually enough.
 
 ---
 
+## Screenshots
+
+The floating HUD signals the current state with a small overlay on screen:
+
+| Recording | Transcribing | No speech |
+|---|---|---|
+| ![Recording](docs/screenshots/hud-recording.png) | ![Transcribing](docs/screenshots/hud-transcribing.png) | ![No speech detected](docs/screenshots/hud-nospeech.png) |
+
+---
+
 ## How it works
 
 ```
