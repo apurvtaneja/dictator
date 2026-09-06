@@ -1,4 +1,10 @@
-"""Cross-platform start/stop/error cues. Best-effort; never raises."""
+"""Cross-platform start/stop/error cues. Best-effort; never raises.
+
+Windows is deliberately silent: the only no-dependency option there is
+winsound.MessageBeep, which plays the system alert sounds (the "ding" and the
+critical-stop chime). Those are jarring for something that fires on every
+dictation, so the HUD overlay is the only feedback on Windows.
+"""
 from __future__ import annotations
 
 import subprocess
@@ -19,13 +25,7 @@ def play(kind: str) -> None:
             if path:
                 subprocess.Popen(["/usr/bin/afplay", path])
         elif IS_WIN:
-            import winsound
-            flag = {
-                "start": winsound.MB_OK,
-                "stop": winsound.MB_ICONASTERISK,
-                "error": winsound.MB_ICONHAND,
-            }.get(kind, winsound.MB_OK)
-            winsound.MessageBeep(flag)
+            return  # silent by design -- see the module docstring
         else:
             for player in (["paplay", "/usr/share/sounds/freedesktop/stereo/bell.oga"],
                            ["aplay", "-q", "/usr/share/sounds/alsa/Front_Center.wav"]):
