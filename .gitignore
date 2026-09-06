@@ -1,0 +1,20 @@
+# macOS junk
+.DS_Store
+__MACOSX/
+._AppleDouble
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Runtime / local user state (never commit)
+~/.config/chatgpt-dictate/
+config.json
+dictate.log
+webprofile/
