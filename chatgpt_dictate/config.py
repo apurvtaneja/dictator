@@ -55,7 +55,8 @@ DEFAULTS: dict = {
 
     # --- misc ---
     "show_engine_window": False,   # debug: show the normally-hidden browser engine
-    "sound_cues": True,
+    "sound_cues": True,           # start/stop/error cues (macOS + Linux; Windows is
+                                  # always silent — see sound.py — and uses the HUD)
 }
 
 

@@ -12,7 +12,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
-from . import config, textinsert
+from . import autostart, config, textinsert
 from ._platform import IS_MAC, IS_WIN, PASTE_HINT
 
 _DOT_COLORS = {
@@ -64,6 +64,12 @@ def run_check() -> int:
     print("  web profile dir  :", config.PROFILE_DIR)
     print("  hotkey           :", cfg["hotkey"])
     print("  mode             :", cfg["mode"])
+    if autostart.supported():
+        recorded = autostart.recorded_command()
+        print("  start at login   :", "enabled" if recorded else "disabled")
+        print("  autostart command:", recorded or autostart.command())
+        if recorded and recorded != autostart.command():
+            print("                     (stale — repaired next time the app starts)")
     print("  transcribe target:", cfg["chatgpt_origin"] + cfg["transcribe_path"],
           f"(field={cfg['audio_field']!r}, response_key={cfg['response_key']!r})")
     return 0
@@ -145,6 +151,9 @@ def main() -> int:
     config.ensure_exists()
     cfg = config.load()
 
+    # Repair a login entry left pointing at an old repo path or interpreter.
+    autostart.refresh()
+
     # single instance: two copies would corrupt the shared web profile
     from PySide6.QtCore import QLockFile
     lock = QLockFile(str(config.CONFIG_DIR / "dictate.lock"))
@@ -200,6 +209,14 @@ def main() -> int:
     act_ptt.triggered.connect(lambda: (_set_mode(engine, act_toggle, act_ptt, "ptt")))
     mode_menu.addAction(act_toggle)
     mode_menu.addAction(act_ptt)
+
+    if autostart.supported():
+        act_autostart = QAction("Start at login", menu, checkable=True)
+        act_autostart.setChecked(autostart.is_enabled())
+        act_autostart.triggered.connect(
+            lambda checked: _toggle_autostart(act_autostart, checked)
+        )
+        menu.addAction(act_autostart)
 
     act_config = QAction("Open config file", menu)
     act_config.triggered.connect(lambda: _open_path(config.CONFIG_PATH))
@@ -275,6 +292,16 @@ def main() -> int:
             QTimer.singleShot(int(secs * 1000), app.quit)
 
     return app.exec()
+
+
+def _toggle_autostart(action, checked: bool) -> None:
+    if checked:
+        autostart.enable()
+    else:
+        autostart.disable()
+    # Reflect what actually happened -- a refused registry write must not leave
+    # the menu claiming a state that isn't true.
+    action.setChecked(autostart.is_enabled())
 
 
 def _set_mode(engine, act_toggle, act_ptt, mode: str) -> None:

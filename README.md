@@ -59,7 +59,8 @@ Everything OS-specific sits behind small dispatchers, so the core is shared:
 | Global hotkey | `hotkey.py` | `hotkey_mac.py` (Carbon) | `hotkey_win.py` (RegisterHotKey) |
 | Text insertion | `textinsert.py` | `inject_mac.py` (CoreGraphics) | `inject_win.py` (SendInput) |
 | Window/overlay | `nativewin.py` | `macwin.py` (NSWindow) | `winwin.py` (user32) |
-| Sound cues | `sound.py` | `afplay` | `winsound` |
+| Sound cues | `sound.py` | `afplay` | none (silent; HUD only) |
+| Start at login | `autostart.py` | LaunchAgent (`make_app.sh`) | `autostart_win.py` (HKCU Run key) |
 
 Shared everywhere: `webengine_backend.py`, `page/inject.js`, `auth_window.py`, `hud.py`,
 `app.py`, `config.py`. `auth_window.py` is a normal visible chatgpt.com browser used only
@@ -117,17 +118,48 @@ cd chatgpt-dictate
 run.bat            REM or: python -m chatgpt_dictate
 ```
 
+`run.bat` keeps the console open so you can watch status lines and quit with
+Ctrl+C. To start it **detached** instead — no console window, and the terminal
+is free immediately:
+
+```bat
+run-bg.bat
+```
+
+That one runs under `pythonw`, the console-less interpreter, so quit it from the
+tray menu rather than with Ctrl+C. The trade-off is silence: with no console
+there is no output, so if the tray icon never appears, run `run.bat` to see why.
+
 A round icon appears in the system tray (click the **^** to show hidden icons). First
 run: press the hotkey once (or tray menu ▸ *Sign in / re-login…*) to open the login
 window; sign in and it closes itself. Diagnostics: `run.bat --check`.
 
 - **Microphone:** Windows prompts once (Settings ▸ Privacy ▸ Microphone — allow desktop apps).
 - **Typing:** works with no permission — the transcript is typed straight in (no paste step).
-- **Autostart / no console:** put a shortcut to `pythonw -m chatgpt_dictate` (run from the
-  repo folder) in `shell:startup`. `pythonw` runs it without a console window.
 - Default hotkey is **Alt+D** (the config's `option` maps to Alt; `cmd` maps to the Win key).
 - Push-to-talk isn't supported on Windows (global hotkeys report key-down only); it runs as
   toggle. Silence auto-stop makes single-press dictation seamless.
+
+### 2. Start it automatically at login
+
+Tray menu ▸ **Start at login**. One click and it comes back after every reboot,
+with no console window — it's launched with `pythonw`, which runs silently.
+
+It writes a single per-user registry value, so there's no admin prompt and
+nothing to install:
+
+```
+HKCU\Software\Microsoft\Windows\CurrentVersion\Run  ▸  "ChatGPT Dictate"
+```
+
+To turn it off, untick the same menu item — or use **Task Manager ▸ Startup**,
+where Windows lists it beside your other login apps.
+
+To see what's registered, run `run.bat --check`; it prints whether autostart is
+enabled and the exact command recorded.
+
+If you move the repo folder or upgrade Python, the recorded command is repaired
+automatically the next time you start the app by hand.
 
 ---
 
@@ -154,7 +186,7 @@ window; sign in and it closes itself. Diagnostics: `run.bat --check`.
 | `response_key` | `"text"` | JSON key holding the transcript |
 | `extra_form_fields` | `{}` | e.g. `{"model": "whisper-1"}` if required |
 | `show_engine_window` | `false` | set `true` to watch the hidden browser while debugging |
-| `sound_cues` | `true` | start/stop/error sounds |
+| `sound_cues` | `true` | start/stop/error sounds (macOS + Linux; Windows is always silent) |
 
 Restart the tool after editing.
 
@@ -258,8 +290,10 @@ chatgpt_dictate/
   hotkey.py             dispatcher ─► hotkey_mac.py (Carbon) | hotkey_win.py (RegisterHotKey)
   textinsert.py         dispatcher ─► inject_mac.py (CoreGraphics) | inject_win.py (SendInput)
   nativewin.py          dispatcher ─► macwin.py (NSWindow) | winwin.py (user32)
-  sound.py              start/stop/error cues (afplay | winsound)
-run.sh / run.bat        launchers (macOS / Windows)
+  sound.py              start/stop/error cues (afplay | silent on Windows)
+  autostart.py          dispatcher ─► autostart_win.py (HKCU Run key); macOS uses a LaunchAgent
+run.sh / run.bat        launchers (macOS / Windows; console attached)
+run-bg.bat              Windows launcher, detached via pythonw (no console)
 packaging/
   make_app.sh                    builds ~/Applications/ChatGPT Dictate.app (macOS)
   com.user.chatgpt-dictate.plist LaunchAgent template (macOS)
