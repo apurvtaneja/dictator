@@ -118,6 +118,18 @@ cd chatgpt-dictate
 run.bat            REM or: python -m chatgpt_dictate
 ```
 
+`run.bat` keeps the console open so you can watch status lines and quit with
+Ctrl+C. To start it **detached** instead — no console window, and the terminal
+is free immediately:
+
+```bat
+run-bg.bat
+```
+
+That one runs under `pythonw`, the console-less interpreter, so quit it from the
+tray menu rather than with Ctrl+C. The trade-off is silence: with no console
+there is no output, so if the tray icon never appears, run `run.bat` to see why.
+
 A round icon appears in the system tray (click the **^** to show hidden icons). First
 run: press the hotkey once (or tray menu ▸ *Sign in / re-login…*) to open the login
 window; sign in and it closes itself. Diagnostics: `run.bat --check`.
@@ -280,7 +292,8 @@ chatgpt_dictate/
   nativewin.py          dispatcher ─► macwin.py (NSWindow) | winwin.py (user32)
   sound.py              start/stop/error cues (afplay | silent on Windows)
   autostart.py          dispatcher ─► autostart_win.py (HKCU Run key); macOS uses a LaunchAgent
-run.sh / run.bat        launchers (macOS / Windows)
+run.sh / run.bat        launchers (macOS / Windows; console attached)
+run-bg.bat              Windows launcher, detached via pythonw (no console)
 packaging/
   make_app.sh                    builds ~/Applications/ChatGPT Dictate.app (macOS)
   com.user.chatgpt-dictate.plist LaunchAgent template (macOS)
