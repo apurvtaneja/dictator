@@ -29,8 +29,20 @@ brew install --cask apurvtaneja/tap/dictator
 Or download `Dictator-x.y.z.zip` from [Releases](https://github.com/apurvtaneja/dictator/releases),
 unzip it, and move **Dictator.app** to Applications.
 
-Dictator isn't notarized by Apple yet, so macOS blocks the first launch. Open System Settings ▸
-Privacy & Security and click **Open Anyway**. You only need to do this once.
+First launch, one time only:
+
+1. Open Dictator from Applications. It isn't notarized by Apple yet, so macOS blocks it: click
+   **Done**, not "Move to Trash".
+2. Open System Settings ▸ Privacy & Security, scroll down to **Security** and click **Open
+   Anyway** next to *"Dictator" was blocked*. The button only appears after step 1, for about
+   an hour. Confirm, then click **Open**.
+3. Paste your OpenRouter API key ([openrouter.ai/keys](https://openrouter.ai/keys)) in the
+   Settings window, click **Check**, then **Save**.
+4. Allow the **Microphone** when asked.
+5. To have text typed for you, turn Dictator on in System Settings ▸ Privacy & Security ▸
+   **Accessibility**. Without it, text is copied and you press ⌘V.
+
+Then press ⌥D anywhere to dictate. Upgrades keep these permissions.
 
 ### Build from source
 
