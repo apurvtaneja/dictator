@@ -1,305 +1,208 @@
-# ChatGPT Dictate (macOS + Windows)
+# Dictator
 
-Press a hotkey anywhere, speak, and the transcription lands in whatever field has
-focus. Transcription reuses your logged-in **chatgpt.com** web session — no API key.
-Runs on stock **Python + PySide6** (Qt 6, includes QtWebEngine) — no `pip install`,
-nothing for a network-level TLS proxy to block, since the network call goes out
-through the embedded browser's own trusted stack.
+Press a hotkey anywhere on your Mac and speak. Clean, correctly punctuated text lands where your
+cursor is, **phrase by phrase while you're still talking**. A small language model fixes grammar,
+removes filler words, and keeps only what you meant when you correct yourself mid-sentence
+("at three, no, four" → "at four").
 
-Default hotkey **Option+D** on macOS, **Ctrl+Shift+D** on Windows, mode **toggle** (tap to start, tap to
-stop), with **silence auto-stop** so a single press is usually enough.
+- **Your own OpenRouter key**, pay as you go. A typical 15-second dictation costs about
+  **$0.001** with the default models, so $1 covers roughly 1,000. Cheaper models are one click
+  away in Settings.
+- **Tiny and frugal:** one ~14 MB native app (Go + AppKit), about 20–30 MB of memory, and 0% CPU
+  while idle. The microphone is open only while you're dictating.
+- **Works on locked-down work Macs:** without Accessibility permission the text is copied
+  and you press ⌘V. HTTPS uses the system trust store, so TLS-inspecting proxies like
+  Zscaler work.
 
-**macOS** vs **Windows**:
-- *macOS:* typing the transcript needs the Accessibility permission (admin-gated). On a
-  managed Mac without it, the tool copies the text and you press **⌘V** — one keystroke.
-- *Windows:* no permission gate — the transcript is **typed straight into the field**,
-  no paste step. (Push-to-talk isn't available on Windows — a global hotkey there reports
-  only key-down — so it runs as toggle; silence auto-stop covers the gap.)
-
----
-
-## Screenshots
-
-The floating HUD signals the current state with a small overlay on screen:
-
-| Recording | Transcribing | Copied | No speech |
-|---|---|---|---|
-| ![Recording](docs/screenshots/hud-recording.png) | ![Transcribing](docs/screenshots/hud-transcribing.png) | ![Copied](docs/screenshots/hud-copied.png) | ![No speech detected](docs/screenshots/hud-nospeech.png) |
+macOS 13 or later, Apple silicon or Intel.
 
 ---
+
+## Install
+
+```sh
+brew install go          # once (needs Xcode Command Line Tools: xcode-select --install)
+make cert                # once: a local signing identity, so macOS remembers permissions
+make install             # builds dist/Dictator.app and copies it to /Applications
+```
+
+Use **/Applications/Dictator.app**. That's the copy macOS grants microphone and Accessibility
+permission to, and the one that starts at login. `dist/` holds build output: the same app before
+it's copied, plus bare binaries for the command line.
+
+Why `make cert`: without it the app is signed ad hoc, and macOS ties the Accessibility
+permission to that exact build. After every rebuild the switch in System Settings still looks
+on, but Dictator can't type and falls back to the clipboard. With the certificate the permission
+survives rebuilds. If it ever gets stuck, remove Dictator from the Accessibility list with
+**–** and add it again.
+
+Open **Dictator** from Launchpad or Spotlight. A microphone icon appears in the menu bar;
+there is no Dock icon.
+
+1. **Add your key.** Settings opens on first run. Paste an OpenRouter API key
+   ([openrouter.ai/keys](https://openrouter.ai/keys)) and press **Check**, then **Save**.
+   The key is saved in `~/.config/dictator/openrouter.key`, readable only by you.
+2. **Dictate.** Press **⌥D** and speak. Each time you pause briefly, that phrase is typed
+   about 2 seconds later while you keep talking. Recording stops by itself after a longer
+   silence, or press ⌥D again. macOS asks for microphone access the first time.
+3. **Auto-typing.** Allow Dictator under System Settings ▸ Privacy & Security ▸
+   **Accessibility** (it asks on first launch). Until then, the text is copied and the
+   indicator says *Copied — allow Dictator in Accessibility to type*.
+
+The on-screen indicator shows **Recording** (red) while you speak, then **Finishing** /
+**Polishing** for the last phrase and **Inserted / Copied** (green) at the end.
+
+### Live typing vs. after you finish
+
+Settings ▸ General ▸ **Typing**:
+
+- **Live** (default). The recording is cut at each pause of about 0.7 s, once you've said at
+  least 1.5 s. Each phrase is transcribed and cleaned up while you carry on, and typed in order.
+  Cleanup sees the text typed before it, so sentences continue naturally across pauses.
+  OpenRouter's speech-to-text takes whole audio files, so text arrives phrase by phrase, not
+  word by word.
+- **After I finish speaking.** Everything is transcribed and cleaned up in one go when you stop.
+  Use this if you often correct yourself across a pause ("…on Tuesday." pause "No, Wednesday"):
+  live mode has already typed "Tuesday".
+
+If you switch to another app mid-dictation, typing stops and the rest is copied to the
+clipboard, so nothing lands in the wrong window.
 
 ## How it works
 
 ```
-hotkey (Option+D / Ctrl+Shift+D)  global hotkey via ctypes — Carbon RegisterEventHotKey
-   │  (platform module)        on macOS, user32 RegisterHotKey on Windows.
-   ▼
-app.py  ── state machine ──►  webengine_backend.py
-                              A hidden QtWebEngine page kept loaded on chatgpt.com.
-                              An injected script (page/inject.js) does:
-                                • navigator.mediaDevices.getUserMedia (mic)
-                                • MediaRecorder -> audio/webm;opus blob
-                                • silence detection (Web Audio) for auto-stop
-                                • fetch('/backend-api/transcribe', Bearer <token>)
-                              Running the request *inside the page* means Chromium
-                              handles cookies, the Cloudflare clearance, the
-                              network-proxy TLS chain, and the User-Agent.
-   │  transcript text
-   ▼
-text insertion                macOS: CoreGraphics Unicode events (needs Accessibility),
-   (platform module)          else clipboard + ⌘V. Windows: SendInput types directly.
+⌥D (Carbon hotkey, no polling)
+ └─ AudioQueue mic capture, 16 kHz mono ── silence + pause detection (RMS per 100 ms)
+     └─ AAC encoding by macOS (≈4 KB per second of speech), a new file at each pause
+         └─ per phrase, in parallel: OpenRouter /audio/transcriptions ── openai/gpt-4o-mini-transcribe
+             └─ in order: OpenRouter /chat/completions ── deepseek/deepseek-v4.1-flash (cleanup)
+                 └─ typed into the focused field (CGEvent Unicode) or copied to the clipboard
 ```
 
-### Platform layout
+The defaults were chosen by benchmarking the models on OpenRouter (October 2026) on tricky
+dictations: fillers, self-corrections, technical terms, dictated questions, and text that looks
+like an instruction.
 
-Everything OS-specific sits behind small dispatchers, so the core is shared:
+- **Speech-to-text:** `openai/gpt-4o-mini-transcribe` was fast (~1.1 s) and accurate on
+  technical terms. Alternatives in Settings: `mistralai/voxtral-mini-transcribe` (about as
+  fast), `elevenlabs/scribe-v2` (very accurate, a little slower), and
+  `openai/whisper-large-v3-turbo` (cheapest at ~$0.01 per hour, but it mishears more).
+- **Cleanup:** `deepseek/deepseek-v4.1-flash` was the fastest model that got every test right
+  (~0.7 s), and it keeps your wording. OpenRouter may route the text to DeepSeek's own servers;
+  if that matters to you, choose `anthropic/claude-haiku-5.5` (~1.2 s, careful, lightly
+  polishes tone). `google/gemini-2.5-flash-lite` is the cheapest but misses some
+  self-corrections. Reasoning is switched off, so cleanup adds only a short round trip. The prompt treats your words as text to edit, never as instructions: a dictated
+  question comes back as a question, not an answer. If the model fails, times out, or returns
+  something that doesn't look like an edit, you get the raw transcript instead. A dictation is
+  never lost. **Menu ▸ Copy last raw transcript** gives you the unedited version.
+- **Nothing is sent** when no speech was detected, and phrases that are only a breath or a
+  click are skipped. "Thank you."-style transcripts of near-silence are dropped.
 
-| Concern | Dispatcher | macOS impl | Windows impl |
-|---|---|---|---|
-| Global hotkey | `hotkey.py` | `hotkey_mac.py` (Carbon) | `hotkey_win.py` (RegisterHotKey) |
-| Text insertion | `textinsert.py` | `inject_mac.py` (CoreGraphics) | `inject_win.py` (SendInput) |
-| Window/overlay | `nativewin.py` | `macwin.py` (NSWindow) | `winwin.py` (user32) |
-| Sound cues | `sound.py` | `afplay` | none (silent; HUD only) |
-| Start at login | `autostart.py` | LaunchAgent (`make_app.sh`) | `autostart_win.py` (HKCU Run key) |
+## Efficiency
 
-Shared everywhere: `webengine_backend.py`, `page/inject.js`, `auth_window.py`, `hud.py`,
-`app.py`, `config.py`. `auth_window.py` is a normal visible chatgpt.com browser used only
-for first-time sign-in; it shares the persistent profile with the hidden engine.
+Measured on a MacBook Air, idle, compared with the previous Python + Chromium version:
 
----
-
-## Setup — macOS
-
-### 1. Run it
-
-```sh
-cd ~/chatgpt-dictate
-./run.sh          # or: /usr/bin/python3 -m chatgpt_dictate
-```
-
-A grey dot appears in the menu bar. First run: the engine loads chatgpt.com; if
-you're not signed in, press the hotkey once (or menu ▸ *Sign in / re-login…*) to
-open the login window. Finish signing in there and it closes itself.
-Diagnostics without the UI: `./run.sh --check`.
-
-### 2. Grant permissions (System Settings ▸ Privacy & Security)
-
-| Permission | Why | How |
+| | Before | Now |
 |---|---|---|
-| **Microphone** | the engine records your voice | prompted automatically on first recording |
-| **Accessibility** | to *type* the transcript (optional) | add manually; without it the tool copies + you press ⌘V |
+| Memory (physical footprint) | 167 MB in 2 processes | **20–30 MB, 1 process** |
+| Idle wakeups | ~16 / s | **~0.5–1.5 / s** (≈ 3 / s after the Settings window has been used) |
+| CPU, idle / per 15 s dictation | — | **0.0% / 0.17 s** |
+| App size | 390 MB | **14 MB** (universal) |
+| Upload per 15 s dictation | — | **~85 KB** (AAC), instead of ~480 KB as WAV |
 
-If you run from a terminal, the permission attaches to the *terminal app*. For a
-stable identity, use the app wrapper below and grant permissions to that instead.
+How it stays this lean:
+- Everything is event-driven, with no timers while idle.
+- The mic and audio thread exist only while recording.
+- The HUD animation runs in Core Animation, not in the app.
+- The Settings window is built when opened and freed when closed.
+- One HTTP/2 connection is warmed up while you speak and closed after 90 s idle.
 
-### 3. Optional: menu-bar app wrapper + autostart
+Run `make measure` to check these numbers yourself.
 
-```sh
-sh packaging/make_app.sh                 # builds ~/Applications/ChatGPT Dictate.app
-sh packaging/make_app.sh --launch-agent  # also writes a LaunchAgent for login start
-```
+## Settings
 
-This only writes a `.plist`, a shell launcher, and a generated icon — it installs
-nothing. Then grant Microphone (+ Accessibility if you want auto-typing) to
-*ChatGPT Dictate.app*, and add it under System Settings ▸ General ▸ Login Items.
+Open them from the menu ▸ **Settings…** (⌘,). They're stored in `~/.config/dictator/config.json`.
 
----
-
-## Setup — Windows
-
-**Prerequisite:** Python 3.9+ with **PySide6** installed (`python -c "import PySide6"`
-must succeed). If it's missing and you can't `pip install PySide6`, this won't run —
-that's the one hard requirement.
-
-### 1. Run it
-
-```bat
-cd chatgpt-dictate
-run.bat            REM or: python -m chatgpt_dictate
-```
-
-`run.bat` keeps the console open so you can watch status lines and quit with
-Ctrl+C. To start it **detached** instead — no console window, and the terminal
-is free immediately:
-
-```bat
-run-bg.bat
-```
-
-That one runs under `pythonw`, the console-less interpreter, so quit it from the
-tray menu rather than with Ctrl+C. The trade-off is silence: with no console
-there is no output, so if the tray icon never appears, run `run.bat` to see why.
-
-A round icon appears in the system tray (click the **^** to show hidden icons). First
-run: press the hotkey once (or tray menu ▸ *Sign in / re-login…*) to open the login
-window; sign in and it closes itself. Diagnostics: `run.bat --check`.
-
-- **Microphone:** Windows prompts once (Settings ▸ Privacy ▸ Microphone — allow desktop apps).
-- **Typing:** works with no permission — the transcript is typed straight in (no paste step).
-- Default hotkey is **Ctrl+Shift+D**. In the config, `option` maps to Alt and `cmd` maps
-  to the Win key — but **avoid Alt-based hotkeys on Windows**. `RegisterHotKey` only
-  swallows the final key, so the Alt keydown/keyup still reach the app in front, which
-  treats a bare Alt tap as "open the menu bar" and takes the caret out of your text
-  field. (In Chrome it jumps to the ⋮ menu.) The transcript then has nowhere to land.
-- Push-to-talk isn't supported on Windows (global hotkeys report key-down only); it runs as
-  toggle. Silence auto-stop makes single-press dictation seamless.
-
-### 2. Start it automatically at login
-
-Tray menu ▸ **Start at login**. One click and it comes back after every reboot,
-with no console window — it's launched with `pythonw`, which runs silently.
-
-It writes a single per-user registry value, so there's no admin prompt and
-nothing to install:
-
-```
-HKCU\Software\Microsoft\Windows\CurrentVersion\Run  ▸  "ChatGPT Dictate"
-```
-
-To turn it off, untick the same menu item — or use **Task Manager ▸ Startup**,
-where Windows lists it beside your other login apps.
-
-To see what's registered, run `run.bat --check`; it prints whether autostart is
-enabled and the exact command recorded.
-
-If you move the repo folder or upgrade Python, the recorded command is repaired
-automatically the next time you start the app by hand.
-
----
-
-## Configuration
-
-`~/.config/chatgpt-dictate/config.json` (created on first run; menu ▸ *Open config file*).
-
-| Key | Default | Notes |
+| Key | Default | |
 |---|---|---|
-| `hotkey` | `"option+d"` (macOS), `"ctrl+shift+d"` (Windows) | e.g. `"cmd+shift+d"`, `"ctrl+option+d"`, `"f6"`. On Windows, don't use Alt — see *Setup — Windows* |
-| `mode` | `"toggle"` | `"toggle"` or `"ptt"` (hold). Also switchable from the menu. |
-| `max_seconds` | `120` | hard cap per recording |
-| `insert` | `"clipboard"` | `"clipboard"` (copy → you press ⌘V, no permission), `"keystroke"` or `"paste"` (both need Accessibility; auto-fall back to clipboard if not granted) |
-| `paste_threshold` | `280` | keystroke mode auto-uses paste above this length |
-| `trailing_space` | `true` | append a space after inserted text |
-| `silence_auto_stop` | `true` | **toggle mode:** end recording automatically after a pause, so you only press the hotkey once. Detected in-page (Web Audio), no permission. |
-| `silence_ms` | `1800` | how much continuous silence ends the recording |
-| `silence_min_ms` | `700` | ignore silence in the first moment (avoids instant stop) |
-| `silence_threshold` | `0.02` | RMS level (0..1) below which audio counts as silent — raise it in a noisy room, lower it if it stops too early |
-| `show_hud` | `true` | floating on-screen overlay: Recording → Transcribing → Copied ✓ |
-| `hud_corner` | `"bottom"` | `"bottom"`, `"bottom-right"`, or `"top-right"` |
-| `transcribe_path` | `"/backend-api/transcribe"` | **verify — see below** |
-| `audio_field` | `"file"` | multipart field name for the blob |
-| `response_key` | `"text"` | JSON key holding the transcript |
-| `extra_form_fields` | `{}` | e.g. `{"model": "whisper-1"}` if required |
-| `show_engine_window` | `false` | set `true` to watch the hidden browser while debugging |
-| `sound_cues` | `true` | start/stop/error sounds (macOS + Linux; Windows is always silent) |
+| `hotkey` | `option+d` | in Settings, click the field and press the keys; in the file e.g. `cmd+shift+d`, `f6` |
+| `mode` | `toggle` | `toggle` (tap on / tap off) or `ptt` (hold to talk) |
+| `stt_model` | `openai/gpt-4o-mini-transcribe` | any OpenRouter speech-to-text model |
+| `language` | `""` (auto) | ISO code such as `en`, if auto-detection guesses wrong |
+| `cleanup` | `true` | grammar cleanup on/off (also in the menu) |
+| `cleanup_model` | `deepseek/deepseek-v4.1-flash` | any OpenRouter chat model with reasoning that can be switched off |
+| `cleanup_instructions` | `""` | e.g. "British spelling; my name is spelled Apurv" |
+| `live` | `true` | type phrase by phrase while you speak; `false` = all at once when you stop |
+| `live_pause_ms` | `700` | the pause that ends a phrase in live mode |
+| `insert` | `auto` | `auto`, `clipboard`, `keystroke`, `paste` |
+| `paste_threshold` | `280` | longer texts are pasted instead of typed |
+| `trailing_space` | `true` | |
+| `silence_auto_stop` / `silence_ms` / `silence_min_ms` / `silence_threshold` | `true` / `1800` / `700` / `0.02` | silence auto-stop (toggle mode only) |
+| `max_seconds` | `120` | |
+| `show_hud` / `hud_corner` | `true` / `bottom` | `bottom`, `bottom-right`, `top-right` |
+| `sound_cues` | `true` | |
 
-Restart the tool after editing.
+## Command line
 
----
-
-## Reverse-engineering the endpoint — verify against the live site
-
-`page/inject.js` ships with the historically-correct call, but OpenAI changes these
-paths. Confirm the current values and put any differences in `config.json`
-(`transcribe_path` / `audio_field` / `response_key` / `extra_form_fields`).
-
-1. Open **chatgpt.com** in Chrome, signed in. DevTools ▸ **Network**, filter **Fetch/XHR**.
-2. Click the real **microphone button**, say one sentence, stop.
-3. Inspect the request that carries your audio:
-   - **Request URL** — the path after the origin. Historically `/backend-api/transcribe`;
-     may be `/backend-api/audio/transcriptions` or a `voice`/`realtime` path.
-   - **Payload** — under *Form Data* / *Request Payload*, the **field name** of the
-     binary part (`file` vs `audio`) and any sibling fields (e.g. `model`).
-   - **Request Headers** — confirm `authorization: Bearer …`. Note any of
-     `openai-sentinel-token`, `oai-device-id`, `oai-language`, or an
-     `openai-…-chat-requirements` header.
-   - **Response** — the JSON shape, e.g. `{ "text": "…" }` vs `{ "transcription": "…" }`.
-4. Update `config.json` accordingly. If the response key isn't `text`, set `response_key`.
-
-### If an anti-bot token is required
-
-If step 3 shows an `openai-sentinel-token` / chat-requirements header on the
-transcribe call, the plain `fetch` in `inject.js` will get a 403 (surfaced as
-`reauth` / `http-403`). Because `inject.js` runs in the real page context you can
-call the site's own token generator before the fetch — inspect the site JS for the
-function that mints `openai-sentinel-token` and add a call in `_finish()` in
-`page/inject.js`. Historically the transcribe (Whisper) endpoint did **not** need
-it; `/backend-api/conversation` is the one that does.
-
-### Get `show_engine_window: true` for debugging
-
-Set it in config, restart, and you'll see the engine's chatgpt.com page. Open its
-DevTools via `QTWEBENGINE_REMOTE_DEBUGGING`:
+The app binary is also a CLI:
+`/Applications/Dictator.app/Contents/MacOS/Dictator`, or `dist/dictator-arm64` after `make`.
 
 ```sh
-QTWEBENGINE_REMOTE_DEBUGGING=9223 /usr/bin/python3 -m chatgpt_dictate
-# then open http://localhost:9223 in a browser
+dictator -d                 # start in the background, return to the shell
+dictator --status | --stop | --restart
+dictator --minimal -d       # headless: no menu-bar icon, no HUD, no sounds, clipboard only
+dictator --mic-test         # speak once, print raw + cleaned text, timings and cost
+dictator --check            # diagnostics: key, permissions, proxy, OpenRouter reachability
+dictator --set-key          # save the API key (reads stdin)
 ```
 
----
+Feature flags apply **to that run only** and never change `config.json`:
+`--no-tray`, `--no-hud`, `--no-sound`, `--clipboard`, `--insert`, `--mode`, `--hotkey`,
+`--stt-model`, `--cleanup` / `--no-cleanup`, `--cleanup-model`, `--config PATH`.
 
-## Proxy / MITM notes
+Environment:
+- `OPENROUTER_API_KEY` overrides the saved key.
+- `OPENROUTER_BASE_URL` points at an OpenRouter-compatible gateway.
+- `HTTPS_PROXY` overrides the system proxy.
 
-Nothing to configure. QtWebEngine's Chromium and `curl` both use the macOS system
-trust store, which already contains any network-proxy (TLS inspection) root CA. The
-reverse-engineered call goes out *through* the embedded browser, so it inherits that
-trust automatically.
+## Corporate / managed Macs
 
-Only relevant if you later add a direct-Python HTTPS backend (e.g. an OpenAI
-API-key fallback): build a CA bundle and point Python at it —
+- **No Accessibility permission?** Dictator copies the text and you press ⌘V. That's one keystroke.
+- **TLS inspection (Zscaler etc.):** Go verifies certificates through macOS's Security
+  framework, so the corporate root CA in the System keychain is trusted automatically.
+- **Proxies:** the system HTTPS proxy is used automatically. PAC files aren't evaluated yet;
+  `--check` tells you if one is configured, and you can set `HTTPS_PROXY` instead.
+- **openrouter.ai blocked?** Point `OPENROUTER_BASE_URL` at an approved gateway that speaks
+  the same API.
+
+## Development
 
 ```sh
-cat "$(/usr/bin/python3 -m certifi)" \
-    <(security find-certificate -a -p -c "<Your-Proxy-CA>" /Library/Keychains/System.keychain) \
-    > ~/.config/chatgpt-dictate/corp-ca.pem
-export SSL_CERT_FILE=~/.config/chatgpt-dictate/corp-ca.pem
+make cert       # once: local signing identity (keeps Accessibility across rebuilds)
+make test       # unit tests (config, cleanup guard, hotkeys, silence/phrase detection, API client, daemon)
+make run        # run the bare binary in this terminal
+make            # build the universal dist/Dictator.app
+make measure    # footprint of the running app
 ```
 
----
-
-## Troubleshooting
-
-| Symptom | Fix |
-|---|---|
-| Menu says "Blocked — needs Accessibility permission" | Add the running app (terminal or *ChatGPT Dictate.app*) under Privacy & Security ▸ Accessibility, toggle it on. |
-| Hotkey does nothing when run from terminal | Some terminals restrict global hotkeys; build and run `ChatGPT Dictate.app`. |
-| **Windows:** nothing is typed, and the app in front jumps to its menu bar (Chrome opens its ⋮ menu) | Your hotkey contains **Alt**. `RegisterHotKey` swallows only the final key, so the bare Alt still reaches that app and it activates the menu, stealing the caret. Use an Alt-free hotkey such as `"ctrl+shift+d"`. |
-| "Signed out" persists after logging in | Menu ▸ *Sign in / re-login…*, complete login; the window auto-closes when `/api/auth/session` returns a token. |
-| `reauth` / `http-403` on every dictation | The endpoint likely now wants an anti-bot token — see *If an anti-bot token is required* above; or your session expired (re-login). |
-| `http-404` / empty transcript | Endpoint path or field name changed — redo the *Reverse-engineering* steps and update `config.json`. |
-| Recording never stops / no result | Check `~/.config/chatgpt-dictate/dictate.log`; set `show_engine_window: true` and watch the page. |
-| First launch: "cannot be opened" | Right-click the `.app` ▸ Open, once. It's your own unsigned bundle. |
-
----
-
-## Legal / ToS
-
-`/backend-api/transcribe` is an **undocumented** endpoint. Automating it with your
-session cookie may not be permitted by OpenAI's Terms of Service and can break
-without notice. This is a personal-use interoperability tool; you're responsible for
-how you use it. The backend is isolated (`webengine_backend.py` + the three signals
-it emits) so an official `POST /v1/audio/transcriptions` API-key implementation can
-replace it without touching the hotkey or text-insertion code.
-
-## Files
+Layout:
 
 ```
-chatgpt_dictate/
-  __main__.py           QApplication + tray icon + wiring
-  app.py                recording state machine, auth handling  (OS-agnostic)
-  config.py             config.json under ~/.config/chatgpt-dictate/
-  webengine_backend.py  hidden chatgpt.com engine: mic capture + transcription
-  page/inject.js        in-page script: record, silence-detect, call the endpoint
-  auth_window.py        visible chatgpt.com login window
-  hud.py                floating on-screen Recording/Transcribing/Copied overlay
-  _platform.py          IS_MAC / IS_WIN / paste-key hint
-  hotkey.py             dispatcher ─► hotkey_mac.py (Carbon) | hotkey_win.py (RegisterHotKey)
-  textinsert.py         dispatcher ─► inject_mac.py (CoreGraphics) | inject_win.py (SendInput)
-  nativewin.py          dispatcher ─► macwin.py (NSWindow) | winwin.py (user32)
-  sound.py              start/stop/error cues (afplay | silent on Windows)
-  autostart.py          dispatcher ─► autostart_win.py (HKCU Run key); macOS uses a LaunchAgent
-run.sh / run.bat        launchers (macOS / Windows; console attached)
-run-bg.bat              Windows launcher, detached via pythonw (no console)
-packaging/
-  make_app.sh                    builds ~/Applications/ChatGPT Dictate.app (macOS)
-  com.user.chatgpt-dictate.plist LaunchAgent template (macOS)
+cmd/dictator/        CLI flags, process control, --check / --mic-test
+internal/app/        the controller: hotkey → record → transcribe → clean → insert
+internal/audio/      AudioQueue capture, AAC encoding, cutting at pauses, silence detection (capture.m)
+internal/openrouter/ minimal OpenRouter client (transcriptions, chat, key info)
+internal/cleanup/    the grammar-cleanup prompt and its safety guard
+internal/mac/        AppKit: menu-bar item, Carbon hotkey + recorder field, HUD, typing, Settings window
+internal/config/     ~/.config/dictator/config.json (per-key saves)
+internal/apikey/     the API key file (0600)
+internal/autostart/  start at login (SMAppService; LaunchAgent for bare binaries)
+internal/daemon/     -d / --stop / --status, single-instance flock
+internal/sysproxy/   macOS system proxy for HTTPS
+internal/hotkey/     "option+d" → key code + modifiers
+packaging/           Info.plist, entitlements, icon, measure.sh, make-cert.sh
 ```
+
+There are no third-party Go modules: only the standard library and Apple frameworks through cgo.
+
+Publishing notes are in [docs/PUBLISHING.md](docs/PUBLISHING.md).

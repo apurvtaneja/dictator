@@ -1,20 +1,10 @@
-# macOS junk
+# macOS
 .DS_Store
-__MACOSX/
-._AppleDouble
-*.swp
 
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-venv/
+# build output
 dist/
-build/
+*.test
 
-# Runtime / local user state (never commit)
-~/.config/chatgpt-dictate/
+# runtime state lives in ~/.config/dictator — never in the repo
 config.json
 dictate.log
-webprofile/
