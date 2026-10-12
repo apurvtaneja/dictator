@@ -32,11 +32,11 @@ type Config struct {
 
 	Insert         string `json:"insert"` // "auto" | "clipboard" | "keystroke" | "paste"
 	PasteThreshold int    `json:"paste_threshold"`
-	Live           bool   `json:"live"`          // type phrase by phrase while speaking
+	Live           bool   `json:"live"`          // type phrase by phrase while speaking (cleanup off only)
 	LivePauseMs    int    `json:"live_pause_ms"` // pause that ends a phrase in live mode
 
 	STTModel            string `json:"stt_model"`
-	Language            string `json:"language"` // "" = auto-detect
+	Language            string `json:"language"` // "" = auto-detect; "hinglish" = Hindi in Roman script
 	Cleanup             bool   `json:"cleanup"`
 	CleanupModel        string `json:"cleanup_model"`
 	CleanupInstructions string `json:"cleanup_instructions"`
@@ -57,13 +57,30 @@ func Defaults() Config {
 		SoundCues:        true,
 		Insert:           "auto",
 		PasteThreshold:   280,
-		Live:             true,
+		Live:             false,
 		LivePauseMs:      700,
 		STTModel:         "openai/gpt-4o-mini-transcribe",
 		Cleanup:          true,
 		CleanupModel:     "deepseek/deepseek-v4.1-flash",
 	}
 }
+
+// Hinglish is the Language value for Hindi written in Roman script.
+const Hinglish = "hinglish"
+
+// STTLanguage is the language hint for speech-to-text. Hinglish leaves it to
+// auto-detect, which copes best with mixed Hindi and English; cleanup then
+// fixes the script.
+func (c Config) STTLanguage() string {
+	if c.Language == Hinglish {
+		return ""
+	}
+	return c.Language
+}
+
+// LiveTyping reports whether to type phrase by phrase. Cleanup turns it off:
+// cleaned one phrase at a time, a paragraph loses its thread across pauses.
+func (c Config) LiveTyping() bool { return c.Live && !c.Cleanup }
 
 var (
 	Dir     = filepath.Join(home(), ".config", "dictator")

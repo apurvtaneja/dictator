@@ -391,7 +391,7 @@ func doMicTest(cfg config.Config) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	t0 := time.Now()
-	tr, err := c.Transcribe(ctx, data, path, cfg.STTModel, cfg.Language)
+	tr, err := c.Transcribe(ctx, data, path, cfg.STTModel, cfg.STTLanguage())
 	if err != nil {
 		fmt.Println("transcription failed:", err)
 		return 1
@@ -399,7 +399,7 @@ func doMicTest(cfg config.Config) int {
 	fmt.Printf("\nRaw     (%s, %d ms, $%.6f):\n  %s\n", cfg.STTModel, time.Since(t0).Milliseconds(), tr.Cost, tr.Text)
 	if cfg.Cleanup {
 		t1 := time.Now()
-		r := cleanup.Run(context.Background(), c, cfg.CleanupModel, cfg.CleanupInstructions, tr.Text)
+		r := cleanup.Run(context.Background(), c, cfg.CleanupModel, cleanup.FromConfig(cfg), tr.Text)
 		note := ""
 		if !r.Applied {
 			note = " — fell back to raw: " + r.Reason

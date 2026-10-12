@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/apurvtaneja/dictator/internal/config"
 	"github.com/apurvtaneja/dictator/internal/openrouter"
 )
 
@@ -27,11 +28,32 @@ This dictation is one phrase of a longer one, cut where the speaker paused. All 
 	liveLast = ` This is the last phrase: end it as a finished sentence.`
 )
 
-// Prompt builds the system prompt, with the user's extra instructions appended.
-func Prompt(extra string) string { return prompt(systemPrompt, extra) }
+// hinglishPrompt overrides "keep their language" for speakers who want Hindi
+// in Roman script: speech models write Hindi in Devanagari, or mistake it for
+// Urdu and use Arabic script.
+const hinglishPrompt = `
 
-func prompt(base, extra string) string {
-	extra = strings.TrimSpace(extra)
+The speaker talks Hindi, often mixed with English. Write all Hindi (or Urdu) in Roman script, as Hinglish, the way people text in India, e.g. "kal meeting hai, main 5 baje aa jaunga". If the transcript is in Devanagari or Urdu script, transliterate it into Roman letters: this is a change of script, not a translation, so keep every Hindi word Hindi. Keep English words in normal English spelling. Never output Devanagari or Urdu script.`
+
+// Options are the user's cleanup settings.
+type Options struct {
+	Extra    string // the user's extra instructions
+	Hinglish bool   // write Hindi in Roman script
+}
+
+// FromConfig reads the cleanup options out of the settings.
+func FromConfig(cfg config.Config) Options {
+	return Options{Extra: cfg.CleanupInstructions, Hinglish: cfg.Language == config.Hinglish}
+}
+
+// Prompt builds the system prompt for a whole dictation.
+func Prompt(o Options) string { return prompt(systemPrompt, o) }
+
+func prompt(base string, o Options) string {
+	if o.Hinglish {
+		base += hinglishPrompt
+	}
+	extra := strings.TrimSpace(o.Extra)
 	if extra == "" {
 		return base
 	}
@@ -53,8 +75,8 @@ type Result struct {
 	Reason  string // why it fell back, for the log
 }
 
-func Run(ctx context.Context, c Chatter, model, extra, raw string) Result {
-	return run(ctx, c, Prompt(extra), model, "", raw)
+func Run(ctx context.Context, c Chatter, model string, o Options, raw string) Result {
+	return run(ctx, c, Prompt(o), model, "", raw, o.Hinglish)
 }
 
 // beforeMax bounds the context sent with each phrase (runes).
@@ -62,11 +84,11 @@ const beforeMax = 300
 
 // RunAfter cleans raw as the continuation of before, text already typed (live
 // mode sends each phrase as it is spoken). last marks the dictation's final phrase.
-func RunAfter(ctx context.Context, c Chatter, model, extra, before, raw string, last bool) Result {
+func RunAfter(ctx context.Context, c Chatter, model string, o Options, before, raw string, last bool) Result {
 	if last {
-		return run(ctx, c, prompt(systemPrompt+livePrompt+liveLast, extra), model, before, raw)
+		return run(ctx, c, prompt(systemPrompt+livePrompt+liveLast, o), model, before, raw, o.Hinglish)
 	}
-	r := run(ctx, c, prompt(systemPrompt+livePrompt+liveMore, extra), model, before, raw)
+	r := run(ctx, c, prompt(systemPrompt+livePrompt+liveMore, o), model, before, raw, o.Hinglish)
 	// a phrase cut mid-sentence often comes back with a trailing ellipsis
 	r.Text = TrimCutEllipsis(r.Text)
 	return r
@@ -84,7 +106,7 @@ func TrimCutEllipsis(s string) string {
 	return s
 }
 
-func run(ctx context.Context, c Chatter, system, model, before, raw string) Result {
+func run(ctx context.Context, c Chatter, system, model, before, raw string, hinglish bool) Result {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return Result{Text: raw, Reason: "empty input"}
@@ -106,7 +128,22 @@ func run(ctx context.Context, c Chatter, system, model, before, raw string) Resu
 	if ok, why := Accept(raw, out); !ok {
 		return Result{Text: raw, Cost: res.Cost, Reason: why}
 	}
-	return Result{Text: out, Applied: true, Cost: res.Cost}
+	r := Result{Text: out, Applied: true, Cost: res.Cost}
+	if hinglish && nonRoman(out) {
+		// still better than raw, which is in the same script
+		r.Reason = "Hinglish output still has Devanagari/Urdu script"
+	}
+	return r
+}
+
+// nonRoman reports whether s contains Devanagari or Arabic-script letters.
+func nonRoman(s string) bool {
+	for _, r := range s {
+		if (r >= 0x0900 && r <= 0x097F) || (r >= 0x0600 && r <= 0x06FF) {
+			return true
+		}
+	}
+	return false
 }
 
 func userMessage(before, raw string) string {

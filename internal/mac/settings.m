@@ -179,7 +179,7 @@ static NSTextField *dm_header(NSString *s) {
 	[t addRowWithViews:@[ dm_label(@"Speech model"), [self combo:@"stt_model" presets:in[@"stt_presets"]] ]];
 	[t addRowWithViews:@[ empty, [self noteFor:@"stt_model"] ]];
 	[t addRowWithViews:@[ dm_label(@"Language"),
-	                      [self text:@"language" width:120 placeholder:@"auto (or en, de…)" secure:NO] ]];
+	                      [self text:@"language" width:120 placeholder:@"auto (or en, hinglish…)" secure:NO] ]];
 
 	[self section:@"Grammar cleanup" in:t];
 	[t addRowWithViews:@[ empty, [self check:@"cleanup" title:@"Fix grammar, filler words and self-corrections"] ]];
@@ -207,9 +207,8 @@ static NSTextField *dm_header(NSString *s) {
 	[g addRowWithViews:@[ dm_label(@"Typing"),
 	                      [self popup:@"typing" items:@[ @[ @"live", @"Live — type each phrase as I pause" ],
 	                                                     @[ @"finish", @"After I finish speaking" ] ]] ]];
-	[g addRowWithViews:@[ empty, dm_caption(@"Live types while you talk. A correction across a pause "
-	                                         @"(“…Tuesday.” pause “No, Wednesday”) can’t be merged; "
-	                                         @"“After I finish” cleans up the whole dictation at once.") ]];
+	[g addRowWithViews:@[ empty, dm_caption(@"Live works only with grammar cleanup off: cleanup needs the "
+	                                         @"whole dictation at once to keep a paragraph coherent.") ]];
 	[g addRowWithViews:@[ dm_label(@"Insert"),
 	                      [self popup:@"insert" items:@[ @[ @"auto", @"Type it if possible, else copy" ],
 	                                                     @[ @"clipboard", @"Copy only — I press ⌘V" ],

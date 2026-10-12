@@ -315,7 +315,7 @@ func (a *App) begin() {
 	var recRef atomic.Pointer[audio.Recorder]
 	var phrase *audio.Phrase
 	var onSegment func(audio.Segment)
-	if a.cfg.Live {
+	if a.cfg.LiveTyping() {
 		phrase = &audio.Phrase{
 			Threshold:   a.cfg.SilenceThreshold,
 			PauseMs:     a.cfg.LivePauseMs,
@@ -418,7 +418,7 @@ func (a *App) process(gen int, path string, cfg config.Config) {
 	res := evResult{gen: gen, text: tr.Text, raw: tr.Text, cost: tr.Cost}
 	if cfg.Cleanup && tr.Text != "" {
 		a.post(evPolishing{gen})
-		c := cleanup.Run(context.Background(), a.client, cfg.CleanupModel, cfg.CleanupInstructions, tr.Text)
+		c := cleanup.Run(context.Background(), a.client, cfg.CleanupModel, cleanup.FromConfig(cfg), tr.Text)
 		res.text, res.cost = c.Text, res.cost+c.Cost
 		if !c.Applied {
 			log.Printf("cleanup skipped: %s", c.Reason)
@@ -433,7 +433,7 @@ func (a *App) process(gen int, path string, cfg config.Config) {
 func (a *App) transcribe(path string, data []byte, cfg config.Config) (openrouter.Transcription, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	tr, err := a.client.Transcribe(ctx, data, path, cfg.STTModel, cfg.Language)
+	tr, err := a.client.Transcribe(ctx, data, path, cfg.STTModel, cfg.STTLanguage())
 	if openrouter.KindOf(err) == openrouter.KindBadRequest && strings.HasSuffix(path, ".m4a") {
 		// some models only take WAV: convert natively and retry once
 		wav := strings.TrimSuffix(path, ".m4a") + ".wav"
@@ -441,7 +441,7 @@ func (a *App) transcribe(path string, data []byte, cfg config.Config) (openroute
 			defer os.Remove(wav)
 			if wdata, rerr := os.ReadFile(wav); rerr == nil {
 				log.Printf("m4a rejected (%v); retrying as WAV", err)
-				tr, err = a.client.Transcribe(ctx, wdata, wav, cfg.STTModel, cfg.Language)
+				tr, err = a.client.Transcribe(ctx, wdata, wav, cfg.STTModel, cfg.STTLanguage())
 			}
 		}
 	}
@@ -644,7 +644,7 @@ func (a *App) advance() {
 			a.hud(mac.HUDPolishing, "Polishing…", 0)
 		}
 		go func() {
-			c := cleanup.RunAfter(context.Background(), a.client, cfg.CleanupModel, cfg.CleanupInstructions, before, raw, last)
+			c := cleanup.RunAfter(context.Background(), a.client, cfg.CleanupModel, cleanup.FromConfig(cfg), before, raw, last)
 			if !c.Applied {
 				log.Printf("phrase %d: cleanup skipped: %s", idx, c.Reason)
 			}
@@ -996,6 +996,9 @@ func (a *App) saveSettings(data string) {
 	}
 	if err == nil && next.Cleanup && next.CleanupModel == "" {
 		err = errors.New("Choose a cleanup model (or turn cleanup off)")
+	}
+	if err == nil && next.Language == config.Hinglish && !next.Cleanup {
+		err = errors.New("Hinglish needs grammar cleanup on")
 	}
 	if err == nil {
 		_, err = hotkey.Parse(next.Hotkey)

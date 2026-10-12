@@ -70,14 +70,14 @@ The on-screen indicator shows **Recording** (red) while you speak, then **Finish
 
 Settings ▸ General ▸ **Typing**:
 
-- **Live** (default). The recording is cut at each pause of about 0.7 s, once you've said at
-  least 1.5 s. Each phrase is transcribed and cleaned up while you carry on, and typed in order.
-  Cleanup sees the text typed before it, so sentences continue naturally across pauses.
-  OpenRouter's speech-to-text takes whole audio files, so text arrives phrase by phrase, not
-  word by word.
-- **After I finish speaking.** Everything is transcribed and cleaned up in one go when you stop.
-  Use this if you often correct yourself across a pause ("…on Tuesday." pause "No, Wednesday"):
-  live mode has already typed "Tuesday".
+- **After I finish speaking** (default). Everything is transcribed and cleaned up in one go
+  when you stop, so cleanup sees the whole paragraph and corrections across a pause
+  ("…on Tuesday." pause "No, Wednesday") are merged.
+- **Live.** Only used while grammar cleanup is off; with cleanup on, Dictator always waits
+  for the whole dictation, since phrases cleaned one at a time lose the paragraph's thread.
+  The recording is cut at each pause of about 0.7 s, once you've said at least 1.5 s, and each
+  phrase is transcribed and typed in order while you carry on. OpenRouter's speech-to-text
+  takes whole audio files, so text arrives phrase by phrase, not word by word.
 
 If you switch to another app mid-dictation, typing stops and the rest is copied to the
 clipboard, so nothing lands in the wrong window.
@@ -142,11 +142,11 @@ Open them from the menu ▸ **Settings…** (⌘,). They're stored in `~/.config
 | `hotkey` | `option+d` | in Settings, click the field and press the keys; in the file e.g. `cmd+shift+d`, `f6` |
 | `mode` | `toggle` | `toggle` (tap on / tap off) or `ptt` (hold to talk) |
 | `stt_model` | `openai/gpt-4o-mini-transcribe` | any OpenRouter speech-to-text model |
-| `language` | `""` (auto) | ISO code such as `en`, if auto-detection guesses wrong |
+| `language` | `""` (auto) | ISO code such as `en`, if auto-detection guesses wrong; `hinglish` writes Hindi in Roman script (needs `cleanup`) |
 | `cleanup` | `true` | grammar cleanup on/off (also in the menu) |
 | `cleanup_model` | `deepseek/deepseek-v4.1-flash` | any OpenRouter chat model with reasoning that can be switched off |
 | `cleanup_instructions` | `""` | e.g. "British spelling; my name is spelled Apurv" |
-| `live` | `true` | type phrase by phrase while you speak; `false` = all at once when you stop |
+| `live` | `false` | type phrase by phrase while you speak (only with `cleanup` off); `false` = all at once when you stop |
 | `live_pause_ms` | `700` | the pause that ends a phrase in live mode |
 | `insert` | `auto` | `auto`, `clipboard`, `keystroke`, `paste` |
 | `paste_threshold` | `280` | longer texts are pasted instead of typed |

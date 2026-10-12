@@ -60,3 +60,15 @@ func TestMalformedFileFallsBackToDefaults(t *testing.T) {
 		t.Fatalf("want defaults + error, got %+v %v", cfg, err)
 	}
 }
+
+func TestCleanupTurnsOffLiveTyping(t *testing.T) {
+	if (Config{Live: true, Cleanup: true}).LiveTyping() || !(Config{Live: true}).LiveTyping() {
+		t.Fatal("cleanup must win over live typing")
+	}
+}
+
+func TestHinglishUsesAutoDetect(t *testing.T) {
+	if (Config{Language: Hinglish}).STTLanguage() != "" || (Config{Language: "de"}).STTLanguage() != "de" {
+		t.Fatal("bad STT language")
+	}
+}
