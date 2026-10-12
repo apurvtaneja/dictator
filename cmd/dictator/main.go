@@ -30,6 +30,7 @@ import (
 	"github.com/apurvtaneja/dictator/internal/mac"
 	"github.com/apurvtaneja/dictator/internal/openrouter"
 	"github.com/apurvtaneja/dictator/internal/sysproxy"
+	spend "github.com/apurvtaneja/dictator/internal/usage"
 )
 
 // version is set at build time: -ldflags "-X main.version=1.2.3"
@@ -307,6 +308,7 @@ func doCheck(cfg config.Config) int {
 	}
 	fmt.Println("  speech model     :", cfg.STTModel, langNote(cfg.Language))
 	fmt.Printf("  cleanup          : %v (%s)\n", cfg.Cleanup, cfg.CleanupModel)
+	fmt.Println("  spending         :", spend.Load().Summary())
 	fmt.Println("  insert           :", cfg.Insert, map[bool]string{true: "(Accessibility granted: typing works)",
 		false: "(no Accessibility: text is copied, you press ⌘V)"}[mac.AXTrusted()])
 	mic := map[int]string{audio.PermUnknown: "not asked yet", audio.PermRestricted: "restricted by policy",

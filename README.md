@@ -1,12 +1,12 @@
 # Dictator
 
 Press a hotkey anywhere on your Mac and speak. Clean, correctly punctuated text lands where your
-cursor is, **phrase by phrase while you're still talking**. A small language model fixes grammar,
+cursor is as soon as you stop. A small language model fixes grammar,
 removes filler words, and keeps only what you meant when you correct yourself mid-sentence
 ("at three, no, four" → "at four").
 
 - **Your own OpenRouter key**, pay as you go. A typical 15-second dictation costs about
-  **$0.001** with the default models, so $1 covers roughly 1,000. Cheaper models are one click
+  **$0.0006** with the default models, so $1 covers roughly 1,500. Cheaper models are one click
   away in Settings.
 - **Tiny and frugal:** one ~14 MB native app (Go + AppKit), about 20–30 MB of memory, and 0% CPU
   while idle. The microphone is open only while you're dictating.
@@ -132,6 +132,48 @@ How it stays this lean:
 - One HTTP/2 connection is warmed up while you speak and closed after 90 s idle.
 
 Run `make measure` to check these numbers yourself.
+
+## Cost
+
+How long $5 of OpenRouter credit lasts. The numbers are the costs OpenRouter reported for a
+17-second dictation in October 2026. Speech-to-text is billed by audio length. Cleanup is billed
+mostly per dictation, because its instructions are longer than your text. The table assumes
+dictations of about 20 s, so about three cleanups per minute of speech.
+
+| Speech model + cleanup model | Per minute of speech | $5 lasts | At 10 min/day | At 30 min/day |
+|---|---|---|---|---|
+| **gpt-4o-mini-transcribe + DeepSeek V4.1 Flash** (default) | $0.0023 | ~37 h | ~7 months | ~2.5 months |
+| gpt-4o-mini-transcribe + Claude Haiku 5.5 | $0.0022 | ~38 h | ~7.5 months | ~2.5 months |
+| ElevenLabs Scribe v2 + Claude Haiku 5.5 | $0.0021 | ~40 h | ~8 months | ~2.5 months |
+| Voxtral Mini Transcribe + DeepSeek V4.1 Flash | $0.0032 | ~26 h | ~5 months | ~7 weeks |
+| Whisper large-v3-turbo + DeepSeek V4.1 Flash | $0.0005 | ~165 h | ~2.5 years | ~11 months |
+| Whisper large-v3-turbo + Gemini 2.5 Flash Lite | $0.00034 | ~245 h | ~4 years | ~1.3 years |
+
+Measured per dictation (about 17 s of speech):
+
+| Speech model | Cost | Cleanup model | Cost |
+|---|---|---|---|
+| gpt-4o-mini-transcribe | $0.00054 (≈ $0.002/min) | DeepSeek V4.1 Flash | $0.00007–0.00026 |
+| ElevenLabs Scribe v2 | $0.00051 (≈ $0.002/min) | Claude Haiku 5.5 | $0.00008 |
+| Voxtral Mini Transcribe | $0.00080 (≈ $0.003/min) | Gemini 2.5 Flash Lite | $0.00005 |
+| Whisper large-v3-turbo | $0.00006 (≈ $0.0002/min) | | |
+
+- On the default models, a typical 20-second dictation costs about $0.0008, so $5 covers about
+  6,500 dictations.
+- With the paid speech models, speech-to-text is 80–90% of the cost, so choose a cleanup model
+  for quality and privacy rather than price.
+- DeepSeek's cost varies up to about 4×. Dictator asks OpenRouter for the fastest provider,
+  which isn't always the cheapest, and DeepSeek charges double on weekdays from 01:00 to 04:00
+  and 06:00 to 10:00 UTC. Claude Haiku's price is steady.
+- Whisper is about 10× cheaper but mishears more words, especially in mixed-language speech.
+- Hinglish adds a few lines to the cleanup instructions, about $0.00002 per dictation.
+- OpenRouter adds a small fee when you buy credits by card, so $5 paid gives a little less
+  than $5 of credit. Run `dictator --mic-test` to see the exact cost of a dictation.
+
+Dictator keeps its own tally from the exact cost OpenRouter reports with each request. The menu
+shows what you've spent today and this month. Settings shows the all-time total, your measured
+cost per minute and how long $5 lasts at that rate. The tally is stored in
+`~/.config/dictator/usage.json` and counts this Mac only.
 
 ## Settings
 

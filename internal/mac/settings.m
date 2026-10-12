@@ -176,6 +176,7 @@ static NSTextField *dm_header(NSString *s) {
 	[t addRowWithViews:@[ empty, [self row:@[ getKey, check ]] ]];
 	self.keyStatus = dm_caption(in[@"key_hint"]);
 	[t addRowWithViews:@[ empty, self.keyStatus ]];
+	[t addRowWithViews:@[ empty, dm_caption(in[@"usage_summary"]) ]];
 	[t addRowWithViews:@[ dm_label(@"Speech model"), [self combo:@"stt_model" presets:in[@"stt_presets"]] ]];
 	[t addRowWithViews:@[ empty, [self noteFor:@"stt_model"] ]];
 	[t addRowWithViews:@[ dm_label(@"Language"),

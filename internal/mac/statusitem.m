@@ -58,6 +58,8 @@ void dm_status_init(void) {
 		gMenu.autoenablesItems = NO;
 		NSMenuItem *status = dm_add(@"Starting…", DM_ITEM_STATUS);
 		status.enabled = NO;
+		NSMenuItem *spent = dm_add(@"No spending yet", DM_ITEM_USAGE);
+		spent.enabled = NO;
 		dm_add(@"Add OpenRouter key…", DM_ITEM_ADD_KEY);
 		[gMenu addItem:[NSMenuItem separatorItem]];
 

@@ -29,6 +29,7 @@ enum {
 	DM_ITEM_LOG,
 	DM_ITEM_ABOUT,
 	DM_ITEM_QUIT,
+	DM_ITEM_USAGE,
 };
 enum { DM_ICON_IDLE = 0, DM_ICON_RECORDING, DM_ICON_BUSY, DM_ICON_ERROR };
 void dm_status_init(void);

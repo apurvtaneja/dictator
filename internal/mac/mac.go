@@ -28,6 +28,7 @@ const (
 	ItemLog        = C.DM_ITEM_LOG
 	ItemAbout      = C.DM_ITEM_ABOUT
 	ItemQuit       = C.DM_ITEM_QUIT
+	ItemUsage      = C.DM_ITEM_USAGE
 )
 
 // Menu-bar icon states.

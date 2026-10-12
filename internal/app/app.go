@@ -28,6 +28,7 @@ import (
 	"github.com/apurvtaneja/dictator/internal/mac"
 	"github.com/apurvtaneja/dictator/internal/openrouter"
 	"github.com/apurvtaneja/dictator/internal/sysproxy"
+	"github.com/apurvtaneja/dictator/internal/usage"
 )
 
 // Options are per-run switches that aren't config keys.
@@ -58,6 +59,8 @@ type App struct {
 	hk       hotkey.Spec
 	hkOK     bool
 	lastRaw  string
+	recSecs  float64     // length of the last recording
+	usage    usage.Stats // local spending tally
 
 	// live mode: phrases are typed while the user is still speaking
 	phrase *audio.Phrase
@@ -163,6 +166,7 @@ func (a *App) ready() {
 		mac.StatusInit()
 	}
 	autostart.Tidy()
+	a.usage = usage.Load()
 	a.registerHotkey(a.cfg.Hotkey)
 	a.refreshMenu()
 	if a.opts.HUDTest {
@@ -226,6 +230,21 @@ func (a *App) refreshMenu() {
 	mac.ItemChecked(mac.ItemCleanup, a.cfg.Cleanup)
 	mac.ItemChecked(mac.ItemLogin, autostart.Enabled())
 	mac.ItemEnabled(mac.ItemCopyRaw, a.lastRaw != "")
+	mac.ItemTitle(mac.ItemUsage, a.usage.MenuLine(time.Now()))
+}
+
+// addUsage counts a finished dictation in the local spending tally.
+func (a *App) addUsage(cost float64) {
+	if cost <= 0 {
+		return // nothing billed
+	}
+	a.usage.Add(time.Now(), cost, a.recSecs)
+	if err := a.usage.Save(); err != nil {
+		log.Printf("usage: %v", err)
+	}
+	if !a.opts.NoTray {
+		mac.ItemTitle(mac.ItemUsage, a.usage.MenuLine(time.Now()))
+	}
 }
 
 func (a *App) onMenu(tag int) {
@@ -367,6 +386,7 @@ func (a *App) end() {
 	}
 	a.maxTimer.Stop()
 	secs, last := a.rec.Stop() // synchronous: the level callback has finished after this
+	a.recSecs = secs
 	if a.phrase != nil {
 		last.SpeechMs += a.phrase.SpeechMs()
 	}
@@ -488,6 +508,7 @@ func (a *App) onInternal(ev any) {
 
 func (a *App) finish(r evResult) {
 	a.st = idle
+	a.addUsage(r.cost)
 	a.icon(mac.IconIdle)
 	if r.err != nil {
 		msg := friendly(r.err)
@@ -722,6 +743,7 @@ func (a *App) insertNow(text string) {
 func (a *App) finishLive() {
 	l := a.live
 	a.live = nil
+	a.addUsage(l.cost)
 	a.st = idle
 	a.icon(mac.IconIdle)
 	var parts []string
@@ -871,7 +893,7 @@ var sttPresets = []string{
 }
 
 var sttNotes = map[string]string{
-	"openai/gpt-4o-mini-transcribe":     "Fast (~1.1 s) and accurate, with punctuation. About $0.003 per minute of audio.",
+	"openai/gpt-4o-mini-transcribe":     "Fast (~1.1 s) and accurate, with punctuation. About $0.002 per minute of audio.",
 	"mistralai/voxtral-mini-transcribe": "Fast (~1 s) and nearly as accurate. About $0.003 per minute.",
 	"elevenlabs/scribe-v2":              "Very accurate, a little slower (~1.4 s). About $0.002 per minute.",
 	"openai/whisper-large-v3-turbo":     "Cheapest (≈ $0.01 per hour), but mishears more technical words.",
@@ -901,6 +923,7 @@ func (a *App) openSettings(focusKey bool) {
 		"api_key":              "",
 		"has_key":              apikey.Get() != "",
 		"key_hint":             keyHint,
+		"usage_summary":        a.usage.Summary(),
 		"focus_key":            focusKey || apikey.Get() == "",
 		"stt_model":            a.cfg.STTModel,
 		"stt_presets":          sttPresets,
