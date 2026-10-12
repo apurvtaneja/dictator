@@ -20,6 +20,20 @@ macOS 13 or later, Apple silicon or Intel.
 
 ## Install
 
+With Homebrew:
+
+```sh
+brew install --cask apurvtaneja/tap/dictator
+```
+
+Or download `Dictator-x.y.z.zip` from [Releases](https://github.com/apurvtaneja/dictator/releases),
+unzip it, and move **Dictator.app** to Applications.
+
+Dictator isn't notarized by Apple yet, so macOS blocks the first launch. Open System Settings ▸
+Privacy & Security and click **Open Anyway**. You only need to do this once.
+
+### Build from source
+
 ```sh
 brew install go          # once (needs Xcode Command Line Tools: xcode-select --install)
 make cert                # once: a local signing identity, so macOS remembers permissions

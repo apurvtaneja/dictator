@@ -45,8 +45,8 @@ The app is universal (arm64 + x86_64), so one ~6.5 MB DMG covers every Mac on ma
 | Channel | Effort | Notes |
 |---|---|---|
 | **GitHub Releases** | low | Start here: attach the notarized DMG to the tag. |
-| **Homebrew tap** (`brew install --cask apurvtaneja/tap/dictator`) | low | A ~15-line cask in an `apurvtaneja/homebrew-tap` repo that points at the release DMG. |
-| Official homebrew-cask | medium | Requires notarization and a project with some users. Do it later. |
+| **Homebrew tap** (`brew install --cask apurvtaneja/tap/dictator`) | done | [apurvtaneja/homebrew-tap](https://github.com/apurvtaneja/homebrew-tap), `Casks/dictator.rb`. For each release, update `version` and `sha256` (`shasum -a 256 dist/Dictator-x.y.z.zip`). Once notarized, drop the "Open Anyway" caveat. |
+| Official homebrew-cask | — | Needs a notarized app (Homebrew 5+ refuses casks that fail Gatekeeper) and ≥ 75 stars, 30 forks or 30 watchers. |
 | Mac App Store | high | Possible in principle, but the sandbox blocks the global hotkey via Carbon and synthetic typing. Not worth it for v1. |
 | Product Hunt, Show HN, r/macapps | — | For discovery, once a signed release exists. |
 
